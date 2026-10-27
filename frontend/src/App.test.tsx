@@ -34,9 +34,26 @@ describe('App HUD Dashboard', () => {
     expect(screen.getByText(/Sample Real Voice/i)).toBeInTheDocument()
     expect(screen.getByText(/Sample Cloned Voice/i)).toBeInTheDocument()
 
-    // Health status check
+    // Health status check: switches to API: ONLINE with emerald green styling
     await waitFor(() => {
-      expect(screen.getByText(/API: ok \(model: stub\)/i)).toBeInTheDocument()
+      const badge = screen.getByTestId('api-health-badge')
+      expect(badge).toBeInTheDocument()
+      expect(badge).toHaveTextContent(/API:\s*ONLINE/i)
+      expect(badge.className).toContain('text-emerald-400')
+    })
+  })
+
+  it('switches API badge to OFFLINE when probe fails', async () => {
+    // Override fetch to simulate failed health probe
+    vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Connection refused'))
+
+    render(<App />)
+
+    await waitFor(() => {
+      const badge = screen.getByTestId('api-health-badge')
+      expect(badge).toBeInTheDocument()
+      expect(badge).toHaveTextContent(/API:\s*OFFLINE/i)
+      expect(badge.className).toContain('text-crimson-400')
     })
   })
 })

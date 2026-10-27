@@ -28,16 +28,38 @@ export const App: React.FC = () => {
     dismissAlert,
   } = useVoxSocket()
 
-  const [backendHealth, setBackendHealth] = useState<string>('checking...')
+  const [backendStatus, setBackendStatus] = useState<'ONLINE' | 'OFFLINE' | 'CHECKING'>('CHECKING')
+  const [modelVersion, setModelVersion] = useState<string>('')
 
   useEffect(() => {
-    fetch('/health')
-      .then((res) => {
+    let isMounted = true
+
+    const checkHealth = async () => {
+      try {
+        const res = await fetch('/health')
         if (!res.ok) throw new Error('Health probe failed')
-        return res.json()
-      })
-      .then((data) => setBackendHealth(`${data.status} (model: ${data.model_version})`))
-      .catch(() => setBackendHealth('offline'))
+        const data = await res.json()
+        if (isMounted) {
+          if (data.status === 'ok') {
+            setBackendStatus('ONLINE')
+            setModelVersion(data.model_version || '')
+          } else {
+            setBackendStatus('OFFLINE')
+          }
+        }
+      } catch {
+        if (isMounted) {
+          setBackendStatus('OFFLINE')
+        }
+      }
+    }
+
+    checkHealth()
+    const interval = setInterval(checkHealth, 5000)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
   }, [])
 
   return (
@@ -112,9 +134,29 @@ export const App: React.FC = () => {
             </div>
 
             {/* Backend Health */}
-            <div className="hidden md:flex px-3 py-1 rounded bg-void-850 border border-parchment-200/15 text-xs text-parchment-200/60 items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-parchment-200/50" />
-              API: {backendHealth}
+            <div
+              data-testid="api-health-badge"
+              className={`hidden md:flex px-3 py-1 rounded border text-xs items-center gap-1.5 transition-colors ${
+                backendStatus === 'ONLINE'
+                  ? 'bg-emerald-950/40 border-emerald-600/60 text-emerald-400'
+                  : backendStatus === 'CHECKING'
+                  ? 'bg-void-850 border-parchment-200/15 text-parchment-200/60'
+                  : 'bg-crimson-950/40 border-crimson-600/50 text-crimson-400'
+              }`}
+            >
+              <Activity
+                className={`w-3.5 h-3.5 ${
+                  backendStatus === 'ONLINE'
+                    ? 'text-emerald-400'
+                    : backendStatus === 'CHECKING'
+                    ? 'text-parchment-200/50'
+                    : 'text-crimson-400'
+                }`}
+              />
+              <span className="font-semibold">API: {backendStatus}</span>
+              {modelVersion && backendStatus === 'ONLINE' && (
+                <span className="text-[10px] text-emerald-500/70">({modelVersion})</span>
+              )}
             </div>
           </div>
         </div>
