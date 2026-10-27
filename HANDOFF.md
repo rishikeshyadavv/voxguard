@@ -1,40 +1,31 @@
-# HANDOFF — Step 2 Complete
+# HANDOFF — Step 3 Complete
 
 ## 1. Completed Tasks & Green Tests
-- **Config (`backend/app/config.py`)**:
-  - Implemented `Settings` dataclass reading environment variables with defaults: `smooth_n=6`, `t_suspicious=0.5`, `t_alert=0.75`, `alert_consecutive=3`, `clear_threshold=0.4`, `sample_rate=16000`, `window_duration_seconds=2.0`, `hop_duration_seconds=0.5`, `model_backend="stub"`.
-- **Decision Engine (`backend/app/decision/`)**:
-  - `smoothing.py`: `ScoreSmoother` computing a moving average over the last $N$ window scores (defaults to 6 from config), correctly averaging partial windows (< N) and returning 0.0 when empty.
-  - `state_machine.py`:
-    - `CallState` enum (`NORMAL`, `SUSPICIOUS`, `ALERT`).
-    - `StateUpdate` dataclass emitting current state, smoothed score, `alert_triggered` boolean, and consecutive alert counts.
-    - `StateMachine` (and `DecisionEngine` alias) implementing hysteresis:
-      - Transitions `NORMAL` -> `SUSPICIOUS` when `smoothed_score >= t_suspicious` (0.5).
-      - Transitions to `ALERT` strictly when `smoothed_score >= t_alert` (0.75) for `consecutive_alert_count` (3) consecutive windows.
-      - Returns to `NORMAL` strictly when `smoothed_score < clear_threshold` (0.4).
-      - Emits `alert_triggered = True` on the initial window entering `ALERT` and stays quiet on subsequent alert windows.
-      - Resets the active trigger cycle upon dropping back to `NORMAL`.
-- **Unit & Property Tests (`backend/tests/unit/test_decision/`)**:
-  - `test_smoothing.py`: 5 tests covering initial state, partial window means, FIFO overflow, reset, and parameter validation.
-  - `test_state_machine.py`: 8 tests including:
-    - Standard transitions (`NORMAL` -> `SUSPICIOUS` -> `ALERT` -> `NORMAL`).
-    - Hysteresis retention (score in `[0.4, 0.49]` remains in `SUSPICIOUS`).
-    - Consecutive count resets upon interruption (< 0.75).
-    - Threshold ordering validation.
-    - Hypothesis property test: `ALERT` is unreachable in fewer than `consecutive_alert_count` steps.
-    - Hypothesis property test: Hysteresis holds—state cannot drop to `NORMAL` if score stays above `clear_threshold`.
-    - Hypothesis property test: `alert_triggered` fires once per trigger cycle without alert spam.
+- **Inference Interface & Protocol (`backend/app/inference/base.py`)**:
+  - `InferenceEngine(Protocol)`: Decorated with `@runtime_checkable`, requiring `predict(window: np.ndarray) -> float`, `warmup() -> None`, `model_name: str`, and `version: str`.
+  - `validate_audio_window`: Reusable validation checking 1D dimension, float32 dtype, non-empty, expected 32,000 samples (2.0s @ 16 kHz), and rejecting NaNs/Infs.
+- **Deterministic Stub Engine (`backend/app/inference/stub.py`)**:
+  - `StubEngine(InferenceEngine)`:
+    - Default `"energy"` mode: Computes RMS of window; yields high fake probability (0.88) when $\text{RMS} \ge \text{threshold}$ (0.25) and low probability (0.12) on ambient silence/normal speech.
+    - Controllable `"fixed"` mode: `set_fixed_score(score: float)` for deterministic integration and E2E test scenarios.
+    - Controllable `"ramp"` mode: Monotonically cycles scores in $[0.0, 1.0]$.
+    - Exposes `warmup()` and `reset()` operations.
+- **Inference Engine Factory (`backend/app/inference/factory.py`)**:
+  - `get_inference_engine(backend: Optional[str] = None)`: Instantiates the configured engine based on `MODEL_BACKEND` (case-insensitive "stub" default, raises informative `NotImplementedError` for "hf" reserved for Step 6, raises `ValueError` for unknown backend names).
+- **Unit Tests (`backend/tests/unit/test_inference/`)**:
+  - `test_stub_engine.py`: 8 tests verifying Protocol conformance (`isinstance`), strict input validation (types, shapes, dtypes, sample counts, NaNs, Infs), output score bounds in $[0.0, 1.0]$, energy mode discrimination, fixed mode, ramp mode, and warmup/reset.
+  - `test_factory.py`: 4 tests verifying default stub loading, case-insensitive explicit loading, HF placeholder error, and unknown backend rejection.
 - **Verification**:
   - Ruff check: 0 errors
   - Ruff format: clean
-  - Mypy app: 0 errors (strict mode across all 10 source files)
-  - Pytest: 37/37 tests passed (backend) + 1/1 test passed (frontend)
+  - Mypy app: 0 errors (strict mode across all 14 source files)
+  - Pytest: 49/49 tests passed (backend) + 1/1 test passed (frontend)
 
 ## 2. Active Failing Tests or Unfinished Files
 - None. All test suites pass.
 
 ## 3. Commands to Run and Verify
-- **Backend**:
+- **Backend Quality**:
   ```bash
   cd backend
   ruff check .
@@ -42,7 +33,7 @@
   mypy app
   pytest -v
   ```
-- **Frontend**:
+- **Frontend Quality**:
   ```bash
   cd frontend
   npm run lint
@@ -50,14 +41,15 @@
   npm test -- --run
   ```
 
-## 4. Next Step Prompt (Step 3: Inference Interface and Stub)
+## 4. Next Step Prompt (Step 4: API Layer)
 ```markdown
-Read AGENTS.md, docs/PROTOTYPE.md, and HANDOFF.md. Execute Step 3 (Inference Interface and Stub):
-1. Implement backend/app/inference/:
-   - base.py: Define the InferenceEngine Protocol with predict(window: np.ndarray) -> float (where window is float32 mono 16 kHz, returning p_fake in [0.0, 1.0]).
-   - stub.py: Implement StubEngine returning deterministic p_fake (configurable mode: fixed score, linear ramp, or RMS-based pattern) to enable headless testing and UI integration without requiring heavy model checkpoints.
-   - factory.py / get_engine(): Select engine implementation via MODEL_BACKEND env var ("stub", "hf", etc.).
-2. Write unit tests in backend/tests/unit/test_inference/:
-   - test_stub_engine.py verifying bounds [0.0, 1.0], deterministic outputs, input shape validation, and factory selection.
-3. Verify with ruff check, ruff format, mypy app, and pytest. Update HANDOFF.md and git commit as: feat(inference): implement inference protocol and deterministic stub engine (Step 3).
+Read AGENTS.md, docs/PROTOTYPE.md, and HANDOFF.md. Execute Step 4 (API Layer):
+1. Implement backend/app/api/:
+   - predict.py: POST /api/v1/predict accepting multipart audio file (wav/mp3/flac/ogg), 10 MB payload cap, returning verdict ("real" | "suspicious" | "fake"), mean p_fake, per-window scores list, duration, and error handling (400 for empty or unparseable audio, 413 for payload > 10MB).
+   - ws_mic.py: WebSocket /ws/mic accepting binary PCM16 audio frames (and optional initial sample_rate JSON config), orchestrating RingBuffer -> Windower -> InferenceEngine -> ScoreSmoother -> StateMachine, emitting JSON messages per schema (score, alert, error), and handling mid-stream client disconnect gracefully.
+   - Include router mounts in backend/app/main.py.
+2. Integration tests in backend/tests/integration/:
+   - test_predict_api.py: Valid audio uploads (verdict, duration, window scores), empty file rejection, file size cap enforcement, and corrupt file rejection.
+   - test_ws_mic.py: Full streaming lifecycle with chunked PCM16, verification of emitted score and alert JSON frames, irregular chunk streaming, and mid-stream disconnect cleanup.
+3. Verify with ruff check, ruff format, mypy app, and pytest. Update HANDOFF.md and git commit as: feat(api): implement predict endpoint and streaming websocket (Step 4).
 ```
