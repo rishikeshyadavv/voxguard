@@ -1,28 +1,28 @@
-# HANDOFF — Step 0 Complete
+# HANDOFF — Step 1 Complete
 
 ## 1. Completed Tasks & Green Tests
-- **Backend Scaffold**:
-  - `backend/pyproject.toml` configured with Python 3.11, FastAPI, Uvicorn, NumPy, Soxr, SoundFile, HTTPX, Ruff, Mypy, Pytest, and Pytest-asyncio.
-  - `backend/app/main.py` implementing `GET /health` returning `{"status": "ok", "model_version": "stub"}` with CORS middleware.
-  - `backend/tests/unit/test_health.py` unit test verifying `/health`.
-  - `backend/tests/integration/test_health_integration.py` integration test verifying async client interaction with `/health`.
-  - Type checking (`mypy app`), linting (`ruff check .`), and formatting (`ruff format --check .`) pass with 0 warnings/errors.
-- **Frontend Scaffold**:
-  - `frontend/` initialized with Vite, React 18, TypeScript (strict mode), and Tailwind CSS.
-  - Base `App.tsx` component with header, backend health status badge, live telemetry section placeholder, and file dropzone placeholder.
-  - `frontend/src/App.test.tsx` Vitest test verifying rendering and health check integration.
-  - Linting (`eslint`), typechecking (`tsc --noEmit`), unit test (`vitest --run`), and production build (`vite build`) all pass.
-- **Containerization & CI**:
-  - `backend/Dockerfile` with Python 3.11-slim, `libsndfile1`, and `uv`.
-  - `frontend/Dockerfile` multi-stage build with `nginx:alpine` and proxy config for `/health`, `/api`, and `/ws`.
-  - `docker-compose.yml` linking backend (port 8000) and frontend (port 3000).
-  - `.github/workflows/ci.yml` running backend lint/typecheck/test and frontend lint/typecheck/test/build on PRs and pushes to `main` and `master`.
+- **Audio Core Implementation (`backend/app/audio/`)**:
+  - `buffer.py`: Thread-safe `RingBuffer` using `threading.RLock`, supporting configurable capacity (default 30.0s @ 16 kHz = 480,000 float32 samples), FIFO overflow eviction, length/duration queries, and exact slice extraction.
+  - `windowing.py`: `Windower` producing 2.0 s windows (32,000 samples) every 0.5 s hop (8,000 samples) at 16 kHz with carry-over persistence across arbitrary chunk sizes.
+  - `io.py`: Ingest and decode utilities:
+    - `decode_pcm16`: Decodes little-endian signed 16-bit PCM bytes to normalized float32 in [-1.0, 1.0].
+    - `encode_pcm16`: Encodes normalized float32 audio to little-endian PCM16 bytes.
+    - `load_audio_file`: Loads audio bytes (WAV, MP3, FLAC, OGG) via `soundfile`, downmixes multi-channel audio to mono, and resamples to `target_sr` using `soxr`.
+- **Unit Tests (`backend/tests/unit/test_audio/`)**:
+  - `test_buffer.py`: 8 test cases verifying initial state, FIFO overflow dropping, larger-than-capacity appends, slicing, thread safety under 8 concurrent worker threads, and parameter validation.
+  - `test_windowing.py`: 6 test cases verifying exact window counts, long stream window counts, hop shifts, overlap arithmetic, consistency across irregular streaming chunk sizes, and parameter bounds.
+  - `test_io.py`: 8 test cases verifying empty and odd-length PCM payloads, boundary values, round-trip quantization tolerance (max error <= 1/32768), corrupted audio file rejection, mono WAV decoding, stereo downmixing, and FFT-verified frequency preservation through `soxr` resampling.
+- **Verification**:
+  - Ruff check: 0 errors
+  - Ruff format: clean
+  - Mypy app: 0 errors (strict mode across all 6 files)
+  - Pytest: 24/24 tests passed
 
 ## 2. Active Failing Tests or Unfinished Files
-- None. All unit, integration, lint, and build checks are green.
+- None. All backend and frontend tests pass.
 
 ## 3. Commands to Run and Verify
-- **Backend**:
+- **Backend Quality**:
   ```bash
   cd backend
   ruff check .
@@ -30,22 +30,19 @@
   mypy app
   pytest -v
   ```
-- **Frontend**:
+- **Frontend Quality**:
   ```bash
   cd frontend
   npm run lint
   npm run typecheck
   npm test -- --run
-  npm run build
-  ```
-- **Make Target (Linux/macOS/WSL)**:
-  ```bash
-  make lint
-  make test
   ```
 
-## 4. Next Step Prompt
+## 4. Next Step Prompt (Step 2: Decision Logic)
 ```markdown
-Read AGENTS.md, docs/PROTOTYPE.md, and HANDOFF.md. Execute Step 1 (Audio core):
-Implement backend/app/audio: a RingBuffer holding up to 30 s of float32 16 kHz audio, a Windower that yields 2.0 s windows every 0.5 s with correct overlap and carry-over of partial data, and io.py that decodes PCM16 bytes and loads uploaded wav/mp3/flac files to 16 kHz mono float32 (resample with soxr). Write unit tests first, including odd chunk sizes, exact window counts, and buffer cap.
+Read AGENTS.md, docs/PROTOTYPE.md, and HANDOFF.md. Execute Step 2 (Decision Logic):
+Implement backend/app/config.py with configurable thresholds (SMOOTH_N=6, T_SUSPICIOUS=0.5, T_ALERT=0.75, ALERT_CONSECUTIVE=3, CLEAR_THRESHOLD=0.4).
+Implement backend/app/decision/smoothing.py (moving average over last N) and backend/app/decision/state_machine.py (NORMAL, SUSPICIOUS, ALERT with consecutive-window rule and hysteresis, thresholds from config).
+Write unit tests in backend/tests/unit/test_decision/ including hypothesis tests to prove ALERT is never reached without the consecutive rule and that ALERT is emitted once per session until cleared.
+Verify with ruff, mypy, pytest, update HANDOFF.md, and commit.
 ```
