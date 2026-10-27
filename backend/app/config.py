@@ -27,5 +27,8 @@ class Settings:
     alert_consecutive: int = int(os.getenv("ALERT_CONSECUTIVE", "3"))
     clear_threshold: float = float(os.getenv("CLEAR_THRESHOLD", "0.4"))
 
+    # Security & CORS
+    cors_origins: str = os.getenv("CORS_ORIGINS", "*")
+
 
 settings = Settings()

@@ -1,7 +1,7 @@
 .PHONY: lint test test-unit test-integration up down clean frontend-lint frontend-test
 
 lint:
-	cd backend && ruff check . && ruff format --check . && mypy app
+	cd backend && ruff check . && ruff format --check . && mypy --config-file pyproject.toml app
 	cd frontend && npm run lint && npm run typecheck
 
 test-unit:

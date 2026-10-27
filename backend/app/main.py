@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.predict import router as predict_router
 from app.api.ws_mic import router as ws_router
+from app.config import settings
 
 app = FastAPI(
     title="VoxGuard API",
@@ -14,9 +15,15 @@ app = FastAPI(
     version="0.1.0",
 )
 
+origins = [
+    origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()
+]
+if not origins:
+    origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
