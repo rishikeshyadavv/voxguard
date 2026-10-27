@@ -6,7 +6,7 @@ interface DemoClipButtonsProps {
 }
 
 /**
- * Synthesizes a valid in-memory WAV file Blob.
+ * Synthesizes a valid in-memory WAV file Blob as a fallback.
  */
 function createSyntheticWavBlob(durationSeconds: number, amplitude: number): Blob {
   const sampleRate = 16000
@@ -17,26 +17,21 @@ function createSyntheticWavBlob(durationSeconds: number, amplitude: number): Blo
   const buffer = new ArrayBuffer(44 + dataSize)
   const view = new DataView(buffer)
 
-  // RIFF identifier 'RIFF'
+  // RIFF header
   view.setUint32(0, 0x52494646, false)
-  // File length minus 8
   view.setUint32(4, 36 + dataSize, true)
-  // 'WAVE'
   view.setUint32(8, 0x57415645, false)
-  // 'fmt ' chunk
   view.setUint32(12, 0x666d7420, false)
-  view.setUint32(16, 16, true) // Subchunk1Size (16 for PCM)
-  view.setUint16(20, 1, true) // AudioFormat (1 = PCM)
-  view.setUint16(22, 1, true) // NumChannels (1 = Mono)
-  view.setUint32(24, sampleRate, true) // SampleRate
-  view.setUint32(28, byteRate, true) // ByteRate
-  view.setUint16(32, blockAlign, true) // BlockAlign
-  view.setUint16(34, 16, true) // BitsPerSample
-  // 'data' chunk
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, byteRate, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, 16, true)
   view.setUint32(36, 0x64617461, false)
   view.setUint32(40, dataSize, true)
 
-  // Write PCM16 samples (synthesize 440 Hz tone)
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate
     const sample = amplitude * Math.sin(2 * Math.PI * 440 * t)
@@ -60,11 +55,24 @@ export const DemoClipButtons: React.FC<DemoClipButtonsProps> = ({ onDemoResult }
     setActiveClip(type)
     setLastVerdict(null)
 
-    // Real speech has low amplitude (RMS < 0.25 -> p_fake = 0.12)
-    // Cloned speech has high amplitude (RMS >= 0.25 -> p_fake = 0.88)
-    const amplitude = type === 'real' ? 0.1 : 0.8
-    const wavBlob = createSyntheticWavBlob(3.0, amplitude)
-    const fileName = type === 'real' ? 'demo_human_voice.wav' : 'demo_cloned_voice.wav'
+    let wavBlob: Blob
+    const fileName = type === 'real' ? 'real_sample_1.wav' : 'fake_sample_1.wav'
+    const staticUrl = `/demo/${type}/${fileName}`
+
+    try {
+      // First attempt: fetch generated benchmark WAV from public/demo
+      const res = await fetch(staticUrl)
+      if (res.ok) {
+        wavBlob = await res.blob()
+      } else {
+        // Fallback: in-memory synthesized WAV
+        const amplitude = type === 'real' ? 0.1 : 0.8
+        wavBlob = createSyntheticWavBlob(3.0, amplitude)
+      }
+    } catch {
+      const amplitude = type === 'real' ? 0.1 : 0.8
+      wavBlob = createSyntheticWavBlob(3.0, amplitude)
+    }
 
     const formData = new FormData()
     formData.append('file', wavBlob, fileName)

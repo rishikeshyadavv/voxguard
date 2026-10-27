@@ -1,7 +1,9 @@
+import os
 from typing import Dict
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.predict import router as predict_router
 from app.api.ws_mic import router as ws_router
@@ -22,6 +24,11 @@ app.add_middleware(
 
 app.include_router(predict_router)
 app.include_router(ws_router)
+
+# Mount benchmark demo clips if directory is present
+demo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "demo"))
+if os.path.isdir(demo_dir):
+    app.mount("/demo", StaticFiles(directory=demo_dir), name="demo")
 
 
 @app.get("/health")
