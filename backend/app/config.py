@@ -10,6 +10,10 @@ class Settings:
 
     # Model backend ("stub", "hf", "onnx")
     model_backend: str = os.getenv("MODEL_BACKEND", "stub")
+    hf_model_name: str = os.getenv(
+        "HF_MODEL_NAME", "MattyB95/AST-VOXCELEB-SPOOFING-HOTFIX"
+    )
+    hf_device: str = os.getenv("HF_DEVICE", "cpu")
 
     # Audio pipeline parameters
     sample_rate: int = int(os.getenv("SAMPLE_RATE", "16000"))

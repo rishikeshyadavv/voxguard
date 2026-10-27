@@ -1,43 +1,38 @@
-# HANDOFF — Step 5 Complete
+# HANDOFF — Step 6 Complete
 
 ## 1. Completed Tasks & Green Tests
-- **Cyber-Gothic Dark Fantasy HUD Theme (`frontend/`)**:
-  - Configured Tailwind palette: Void stone black (`#070709`, `#0c0c0e`, `#18181c`), textured graphite (`#1e1e24`), parchment white (`#e8e6df`), blood crimson (`#dc2626`, `#ef4444`), hazard amber (`#f59e0b`), and spectral emerald (`#10b981`).
-  - Google display font *Cinzel* and monospace *JetBrains Mono*.
-  - Fine technical corner crosses (`+`), chamfered panels (`clip-path`), and tech grid textures.
-  - Central vertical tectonic fissure motif ([`CentralFissure.tsx`](file:///D:/projects/VOXGAURD/frontend/src/components/CentralFissure.tsx)) running down the telemetry view.
-- **Audio & WebSocket Layer (`frontend/src/`)**:
-  - [`lib/audioRecorder.ts`](file:///D:/projects/VOXGAURD/frontend/src/lib/audioRecorder.ts): Browser microphone capture via Web Audio API, downsampling input audio to 16 kHz signed 16-bit little-endian mono PCM frames with clean resource teardown.
-  - [`hooks/useVoxSocket.ts`](file:///D:/projects/VOXGAURD/frontend/src/hooks/useVoxSocket.ts): Pure state reducer handling connection lifecycle (`CONNECTING`, `CONNECTED`, `DISCONNECTED`, `ERROR`), rolling history buffer capped at 60 points, audio chime synthesis on alert triggers, and auto-reconnect logic.
-- **HUD Components (`frontend/src/components/`)**:
-  - [`ConfidenceMeter.tsx`](file:///D:/projects/VOXGAURD/frontend/src/components/ConfidenceMeter.tsx): Radial HUD gauge displaying `p_smooth * 100%`, state label, and status-colored glow (emerald `NORMAL`, amber `SUSPICIOUS`, pulsing crimson `ALERT`).
-  - [`ScoreChart.tsx`](file:///D:/projects/VOXGAURD/frontend/src/components/ScoreChart.tsx): Real-time Recharts rolling line chart tracking `p_smooth` and `p_fake` against threshold reference lines (0.50 SUSPICIOUS and 0.75 ALERT).
-  - [`AlertBanner.tsx`](file:///D:/projects/VOXGAURD/frontend/src/components/AlertBanner.tsx): High-impact crimson alert banner overlay with dismiss controls.
-  - [`AudioUploader.tsx`](file:///D:/projects/VOXGAURD/frontend/src/components/AudioUploader.tsx): Drag-and-drop audio file upload to `POST /api/v1/predict` displaying verdict badge (`REAL` / `FAKE`), fake probability, duration, and window count.
-  - [`DemoClipButtons.tsx`](file:///D:/projects/VOXGAURD/frontend/src/components/DemoClipButtons.tsx): Instant evaluation buttons ("Sample Real Voice" and "Sample Cloned Voice") generating synthetic WAV blobs to evaluate the pipeline without requiring a physical microphone.
-- **Unit & Integration Tests**:
-  - Frontend: 8 tests passing ([`useVoxSocket.test.ts`](file:///D:/projects/VOXGAURD/frontend/src/hooks/useVoxSocket.test.ts) covering reducer actions, buffer cap, alert triggers, reset, and [`App.test.tsx`](file:///D:/projects/VOXGAURD/frontend/src/App.test.tsx) verifying HUD rendering).
-  - Backend: 60 tests passing across audio, decision, inference, and API integration suites.
+- **Dependencies & Configuration**:
+  - Added `torch`, `torchaudio`, and `transformers` to [`backend/pyproject.toml`](file:///D:/projects/VOXGAURD/backend/pyproject.toml) and verified PyTorch CPU execution.
+  - Added `hf_model_name` (default: `"MattyB95/AST-VOXCELEB-SPOOFING-HOTFIX"`) and `hf_device` (`"cpu"`) in [`backend/app/config.py`](file:///D:/projects/VOXGAURD/backend/app/config.py).
+- **Hugging Face Inference Engine (`backend/app/inference/hf_engine.py`)**:
+  - Implemented `HFEngine(InferenceEngine)`:
+    - Conforms to `InferenceEngine` protocol with strict `validate_audio_window` checks (1D float32 16 kHz, 32,000 samples, no NaN/Infs).
+    - Dynamic label resolution from `model.config.id2label` parsing spoof/fake vs. bonafide/real classes with softmax probability pooling.
+    - Softmax probability mapping strictly bounded in $[0.0, 1.0]$.
+    - `warmup()` executing zero-window dummy pass to initialize graph/memory.
+    - Per-window latency profiling logging timing in milliseconds.
+- **Factory Integration (`backend/app/inference/factory.py`)**:
+  - `get_inference_engine`: Dynamically instantiates `HFEngine` when `MODEL_BACKEND="hf"` is requested with graceful fallback to `StubEngine` if model checkpoint is unavailable offline.
+- **Benchmark Script (`backend/scripts/bench.py`)**:
+  - Generates 10 test windows (silence, multi-frequency sine waves, Gaussian noise).
+  - Evaluates engine over 10 iterations per window (100 total inferences).
+  - Reports mean, median, p95, min, and max latencies.
+  - Enforces $< 750$ ms CPU latency SLA.
+- **Unit Tests (`backend/tests/unit/test_inference/`)**:
+  - [`test_hf_engine.py`](file:///D:/projects/VOXGAURD/backend/tests/unit/test_inference/test_hf_engine.py): 7 tests covering protocol conformance, label index resolution (normal and inverted mappings), high-confidence spoof detection, high-confidence bonafide detection, warmup execution, and invalid window rejection.
+  - [`test_factory.py`](file:///D:/projects/VOXGAURD/backend/tests/unit/test_inference/test_factory.py): 5 tests verifying stub selection, case insensitivity, mocked HF engine instantiation, fallback to stub on load error, and invalid backend name rejection.
 - **Verification**:
-  - `npm run lint` &rarr; 0 errors
-  - `npm run typecheck` &rarr; 0 errors (strict mode)
-  - `npm test -- --run` &rarr; 8/8 tests passed
-  - `npm run build` &rarr; Production build completed cleanly (Vite)
-  - `pytest -v` (backend) &rarr; 60/60 tests passed
+  - `ruff check .` &rarr; 0 errors
+  - `ruff format --check .` &rarr; clean
+  - `mypy app` &rarr; 0 errors (strict mode across all 18 source files)
+  - `pytest -v` (backend) &rarr; 67/67 tests passed
+  - `npm test -- --run` (frontend) &rarr; 8/8 tests passed
 
 ## 2. Active Failing Tests or Unfinished Files
 - None. All test suites pass.
 
 ## 3. Commands to Run and Verify
-- **Frontend**:
-  ```bash
-  cd frontend
-  npm run lint
-  npm run typecheck
-  npm test -- --run
-  npm run build
-  ```
-- **Backend**:
+- **Backend Quality**:
   ```bash
   cd backend
   ruff check .
@@ -45,20 +40,28 @@
   mypy app
   pytest -v
   ```
+- **Benchmark Execution**:
+  ```bash
+  python backend/scripts/bench.py --backend stub --threshold 750
+  ```
+- **Frontend Quality**:
+  ```bash
+  cd frontend
+  npm run lint
+  npm run typecheck
+  npm test -- --run
+  ```
 
-## 4. Next Step Prompt (Step 6: Real Model Integration)
+## 4. Next Step Prompt (Step 7: Demo Data & Evaluation Pipeline)
 ```markdown
-Read AGENTS.md, docs/PROTOTYPE.md, and HANDOFF.md. Execute Step 6 (Real Model):
-1. Implement backend/app/inference/hf_engine.py using a pretrained audio deepfake/anti-spoofing model from Hugging Face:
-   - Identify or wrap a small footprint audio classification model running on CPU (e.g. Wav2Vec2/WavLM based anti-spoofing or equivalent lightweight checkpoint).
-   - Implement InferenceEngine Protocol: warmup(), predict(window: np.ndarray) -> float, model_name, version.
-   - Explicit label mapping to p_fake strictly in [0.0, 1.0].
-   - Log per-window inference latency.
-2. Update backend/app/inference/factory.py:
-   - Wire MODEL_BACKEND="hf" to load HFEngine with fallback to StubEngine if checkpoint is unavailable or during offline testing.
-3. Benchmarking & Evaluation scripts:
-   - backend/scripts/bench.py: Benchmark per-window inference latency on 2.0 s audio on CPU.
-4. Unit tests in backend/tests/unit/test_inference/test_hf_engine.py:
-   - Validate output bounds in [0.0, 1.0] and stability with synthetic windows.
-5. Verify with ruff, mypy, and pytest. Update HANDOFF.md and git commit as: feat(inference): integrate real Hugging Face anti-spoofing engine (Step 6).
+Read AGENTS.md, docs/PROTOTYPE.md, and HANDOFF.md. Execute Step 7 (Demo Data & Evaluation):
+1. Setup demo audio directories:
+   - demo/real/ and demo/fake/ with generated/synthesized evaluation clips (3+ clips each for demo testing, plus 10+ clips each for evaluation).
+2. Implement backend/scripts/evaluate.py:
+   - Evaluates all audio clips across demo/real/ and demo/fake/ using the inference engine.
+   - Computes accuracy, mean fake score per class, and false-alarm rate at T_ALERT (0.75).
+   - Generates docs/EVAL.md with formatted markdown evaluation report table.
+3. Tests in backend/tests/unit/:
+   - test_evaluate_script.py verifying evaluation metrics calculation.
+4. Verify with ruff check, ruff format, mypy app, and pytest. Update HANDOFF.md and git commit as: feat(eval): add benchmark clips, evaluation script, and accuracy report (Step 7).
 ```

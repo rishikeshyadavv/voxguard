@@ -1,10 +1,13 @@
 """Inference engine factory for VoxGuard."""
 
+import logging
 from typing import Optional
 
 from app.config import settings
 from app.inference.base import InferenceEngine
 from app.inference.stub import StubEngine
+
+logger = logging.getLogger("voxguard.inference_factory")
 
 
 def get_inference_engine(backend: Optional[str] = None) -> InferenceEngine:
@@ -23,10 +26,18 @@ def get_inference_engine(backend: Optional[str] = None) -> InferenceEngine:
         return StubEngine()
 
     if engine_type == "hf":
-        raise NotImplementedError(
-            "Hugging Face engine ('hf') will be implemented in Step 6. "
-            "Use 'stub' for current prototype milestones."
-        )
+        try:
+            from app.inference.hf_engine import HFEngine
+
+            return HFEngine()
+        except Exception as exc:
+            logger.warning(
+                "Failed to initialize Hugging Face engine ('%s'): %s. "
+                "Falling back to StubEngine.",
+                settings.hf_model_name,
+                exc,
+            )
+            return StubEngine()
 
     raise ValueError(
         f"Unsupported inference backend '{engine_type}'. "
