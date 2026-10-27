@@ -11,8 +11,83 @@ body {
   display: flex;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #070709;
+  font-family: 'JetBrains Mono', monospace;
+  overflow-x: hidden;
 }
 
 #root {
   width: 100%;
+}
+
+/* Cyber-Gothic HUD Utilities */
+.hud-panel {
+  position: relative;
+  background: rgba(12, 12, 14, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(232, 230, 223, 0.12);
+}
+
+.hud-panel::before,
+.hud-panel::after {
+  content: '+';
+  position: absolute;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(232, 230, 223, 0.4);
+  pointer-events: none;
+}
+
+.hud-panel::before {
+  top: -6px;
+  left: -5px;
+}
+
+.hud-panel::after {
+  bottom: -6px;
+  right: -5px;
+}
+
+.clip-hud {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+}
+
+.clip-chamfer {
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+}
+
+/* Subtle tech grid background */
+.bg-tech-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+/* Glowing text shadows */
+.text-glow-crimson {
+  text-shadow: 0 0 12px rgba(220, 38, 38, 0.65);
+}
+
+.text-glow-amber {
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.65);
+}
+
+.text-glow-emerald {
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.65);
 }
