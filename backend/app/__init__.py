@@ -1,0 +1,1 @@
+"""VoxGuard Backend Application Entrypoint."""
